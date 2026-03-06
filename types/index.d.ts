@@ -33,6 +33,12 @@ export class Event<T = void> {
   execute(fn: (value: T) => void): Event<T>;
 
   /**
+   * Debounce emissions — waits for `ms` milliseconds of silence before
+   * emitting the most recent value.
+   */
+  debounce(ms: number): Event<T>;
+
+  /**
    * Race this Event against another. The first source to emit wins —
    * all future emissions come only from the winner. The losing source
    * is permanently ignored.
@@ -45,6 +51,14 @@ export class Event<T = void> {
    * sources have emitted at least once (combineLatest semantics).
    */
   combineEvent<U>(other: Event<U>): Event<[T, U]>;
+
+  /**
+   * Buffer the latest value and only emit it when `otherEvent` fires.
+   * If multiple values arrive before the gate opens, only the most recent
+   * is kept. Combine with `timer` for a fixed delay:
+   * `event.waitForEvent(timer(500).event)`
+   */
+  waitForEvent(otherEvent: Event<any>): Event<T>;
 
   /**
    * Convert this Event into an Observable with an initial value.
@@ -94,4 +108,29 @@ export class Observable<T> {
    * The value passes through unchanged. Returns a new Event.
    */
   execute(fn: (value: T) => void): Event<T>;
+
+  /**
+   * Debounce emissions — waits for `ms` milliseconds of silence before
+   * emitting the most recent value. Returns a new Event.
+   */
+  debounce(ms: number): Event<T>;
 }
+
+// ---------------------------------------------------------------------------
+// Factory functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Create an Event that emits incrementing integers (0, 1, 2, …) at a
+ * fixed interval.
+ * @param ms Interval in milliseconds between emissions.
+ * @returns `event` to subscribe to, `dispose` to stop the interval.
+ */
+export function ticker(ms: number): { event: Event<number>; dispose: Dispose };
+
+/**
+ * Create an Event that fires a single `0` after a one-time delay.
+ * @param ms Delay in milliseconds before emission.
+ * @returns `event` to subscribe to, `dispose` to cancel before it fires.
+ */
+export function timer(ms: number): { event: Event<number>; dispose: Dispose };

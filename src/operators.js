@@ -113,6 +113,58 @@ function combineEventOperator(otherEvent) {
   return derived;
 }
 
+/**
+ * Creates a derived Event that delays emission until `ms` milliseconds of
+ * silence have passed. Each incoming value resets the timer — only the last
+ * value in a burst is emitted. Equivalent to RxJS `debounceTime`.
+ * @param {SignalNode} sourceNode The source signal node.
+ * @param {number} ms Debounce window in milliseconds.
+ * @returns {Event} A new Event emitting the debounced values.
+ */
+function debounceOperator(sourceNode, ms) {
+  const derived = new Event();
+  let timerId = null;
+  derived._node._push = (value) => {
+    if (timerId !== null) clearTimeout(timerId);
+    timerId = setTimeout(() => {
+      timerId = null;
+      derived._node._notify(value);
+    }, ms);
+  };
+  sourceNode._addChild(derived._node);
+  return derived;
+}
+
+/**
+ * Buffers the latest value from this Event and only emits it when
+ * `otherEvent` fires. If multiple values arrive before the gate opens,
+ * only the most recent is kept. The buffer is cleared after each emission.
+ *
+ * Combine with `timer` to create a fixed delay:
+ * `event.waitForEvent(timer(500).event)`
+ *
+ * @param {Event} otherEvent The gate Event that triggers emission.
+ * @returns {Event} A new Event that emits buffered values when the gate opens.
+ */
+function waitForEventOperator(otherEvent) {
+  const derived = new Event();
+  let buffer = undefined;
+  let hasBuffer = false;
+  this._node._subscribeRaw((value) => {
+    buffer = value;
+    hasBuffer = true;
+  });
+  otherEvent._node._subscribeRaw(() => {
+    if (hasBuffer) {
+      const val = buffer;
+      buffer = undefined;
+      hasBuffer = false;
+      derived._node._notify(val);
+    }
+  });
+  return derived;
+}
+
 // ---------------------------------------------------------------------------
 // Attach operators to prototypes
 // ---------------------------------------------------------------------------
@@ -160,4 +212,26 @@ Observable.prototype.filter = function (predicate) {
 /** Run a side-effect for each value without altering it. Returns a new Event. */
 Observable.prototype.execute = function (fn) {
   return executeOperator(this._node, fn);
+};
+
+/**
+ * Debounce emissions — waits for `ms` milliseconds of silence before
+ * emitting the most recent value. Returns a new Event.
+ */
+Event.prototype.debounce = function (ms) {
+  return debounceOperator(this._node, ms);
+};
+
+/**
+ * Wait for `otherEvent` to fire before emitting the latest buffered value.
+ * Only the most recent value is kept. Returns a new Event.
+ */
+Event.prototype.waitForEvent = waitForEventOperator;
+
+/**
+ * Debounce emissions — waits for `ms` milliseconds of silence before
+ * emitting the most recent value. Returns a new Event.
+ */
+Observable.prototype.debounce = function (ms) {
+  return debounceOperator(this._node, ms);
 };

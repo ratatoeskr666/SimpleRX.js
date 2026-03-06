@@ -7,6 +7,7 @@ A minimal reactive framework for JavaScript with signal-based internals and a LI
 - **Signal-powered** — fast push-based reactivity under the hood
 - **Two clean types** — `Observable` (stateful) and `Event` (derived stream)
 - **Fluent chaining** — `.map().filter().execute().subscribe()` like LINQ
+- **Time-based triggers** — `ticker` and `timer` for interval/delay patterns
 - **Zero dependencies** — no runtime deps, tiny footprint
 - **TypeScript support** — ships with `.d.ts` type definitions and full generics
 
@@ -17,7 +18,7 @@ npm install simplerx
 ```
 
 ```js
-import { Observable } from 'simplerx';
+import { Observable, ticker, timer } from 'simplerx';
 ```
 
 ## Quick Start
@@ -94,6 +95,7 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.map(fn)` | `Event` | Transform values |
 | `.filter(predicate)` | `Event` | Filter values by condition |
 | `.execute(fn)` | `Event` | Run side-effect, pass value through |
+| `.debounce(ms)` | `Event` | Debounce emissions by `ms` milliseconds |
 
 ### Event
 
@@ -103,9 +105,18 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.map(fn)` | `Event` | Transform values |
 | `.filter(predicate)` | `Event` | Filter values by condition |
 | `.execute(fn)` | `Event` | Run side-effect, pass value through |
+| `.debounce(ms)` | `Event` | Debounce emissions by `ms` milliseconds |
 | `.raceEvent(other)` | `Event` | First source to emit wins, loser ignored |
 | `.combineEvent(other)` | `Event` | Emit `[A, B]` tuples (combineLatest) |
+| `.waitForEvent(other)` | `Event` | Buffer value, emit when `other` fires |
 | `.asObservable(initialValue)` | `Observable` | Convert back to stateful Observable |
+
+### Factory Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `ticker(ms)` | `{ event, dispose }` | Emit 0, 1, 2, … every `ms` milliseconds |
+| `timer(ms)` | `{ event, dispose }` | Emit `0` once after `ms` milliseconds |
 
 All `.subscribe()` calls return a **dispose function** — call it to unsubscribe:
 
@@ -149,6 +160,23 @@ data
   .subscribe(v => render(v));
 ```
 
+### debounce
+
+Wait for silence before emitting the most recent value (like RxJS `debounceTime`).
+
+```js
+const search = new Observable('');
+search
+  .debounce(300)
+  .subscribe(query => fetchResults(query));
+
+search.set('h');
+search.set('he');
+search.set('hel');
+search.set('hello');
+// Only 'hello' is emitted — after 300ms of silence
+```
+
 ### raceEvent
 
 Race two Events — the first to emit wins, the loser is permanently ignored.
@@ -177,6 +205,24 @@ y.set(2);         // → x=1, y=2
 x.set(3);         // → x=3, y=2
 ```
 
+### waitForEvent
+
+Buffer the latest value and only emit when another Event fires. Combine with `timer` to create a fixed delay.
+
+```js
+import { Observable, timer } from 'simplerx';
+
+const clicks = new Observable(0);
+const { event: gate } = timer(500);
+
+clicks.map(v => v)
+  .waitForEvent(gate)
+  .subscribe(v => console.log('delayed:', v));
+
+clicks.set(1);
+// After 500ms → delayed: 1
+```
+
 ### asObservable
 
 Convert an Event back into an Observable with an initial value.
@@ -188,6 +234,32 @@ derived.value;       // 0
 derived.subscribe(v => console.log(v));  // → 0 (immediate)
 source.set(5);       // → 50
 derived.value;       // 50
+```
+
+## Factory Functions
+
+### ticker
+
+Create a recurring interval that emits incrementing integers.
+
+```js
+import { ticker } from 'simplerx';
+
+const { event, dispose } = ticker(1000);
+event.subscribe(n => console.log('tick', n));  // 0, 1, 2, …
+// Call dispose() to stop the interval
+```
+
+### timer
+
+Create a one-shot delay that fires once.
+
+```js
+import { timer } from 'simplerx';
+
+const { event, dispose } = timer(2000);
+event.subscribe(() => console.log('fired!'));
+// Call dispose() to cancel before it fires
 ```
 
 ## Contributing
@@ -209,12 +281,14 @@ src/
   event.js       Event class
   observable.js  Observable class
   operators.js   All operators (attached to prototypes)
+  factories.js   Factory functions (ticker, timer)
   index.js       Public entry point
 types/
   index.d.ts     TypeScript definitions
 test/
-  *.test.js              Base type tests
-  operators/*.test.js    Operator tests
+  *.test.js                Base type tests
+  operators/*.test.js      Operator tests
+  factories/*.test.js      Factory function tests
 ```
 
 ### Guidelines
@@ -222,7 +296,9 @@ test/
 - Source is plain JavaScript (ES modules) — no build step
 - TypeScript definitions live in `types/index.d.ts` and must be updated alongside any API changes
 - All new operators go in `src/operators.js` following the existing pattern
-- Tests use `bun:test` — add base type tests in `test/`, operator tests in `test/operators/`
+- Factory functions go in `src/factories.js` and are exported from `src/index.js`
+- Tests use `bun:test` — base type tests in `test/`, operator tests in `test/operators/`, factory tests in `test/factories/`
+- Async tests (timer, debounce) use real timers with short durations and `await delay(ms)`
 - Keep it minimal: no unnecessary abstractions, no runtime dependencies
 
 ## License
