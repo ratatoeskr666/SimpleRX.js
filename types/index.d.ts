@@ -1,9 +1,9 @@
 export type Dispose = () => void;
 
 export class Event<T = void> {
-  emit(value: T): void;
   subscribe(callback: (value: T) => void): Dispose;
   map<U>(fn: (value: T) => U): Event<U>;
+  asObservable(initialValue: T): Observable<T>;
 }
 
 export class Observable<T> {
@@ -11,5 +11,5 @@ export class Observable<T> {
   readonly value: T;
   set(newValue: T): void;
   subscribe(callback: (value: T) => void): Dispose;
-  map<U>(fn: (value: T) => U): Observable<U>;
+  map<U>(fn: (value: T) => U): Event<U>;
 }

@@ -1,20 +1,11 @@
 import { SignalNode } from './signal.js';
-import { createMappedEvent } from './operators.js';
 
 export class Event {
-  constructor() {
-    this._node = new SignalNode(undefined, false);
-  }
-
-  emit(value) {
-    this._node._notify(value);
+  constructor(node) {
+    this._node = node || new SignalNode(undefined, false);
   }
 
   subscribe(callback) {
     return this._node.subscribe(callback);
-  }
-
-  map(fn) {
-    return createMappedEvent(this._node, fn);
   }
 }

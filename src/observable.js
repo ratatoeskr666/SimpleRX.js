@@ -1,9 +1,8 @@
 import { SignalNode } from './signal.js';
-import { createMappedObservable } from './operators.js';
 
 export class Observable {
-  constructor(initialValue) {
-    this._node = new SignalNode(initialValue, true);
+  constructor(initialValue, _node) {
+    this._node = _node || new SignalNode(initialValue, true);
   }
 
   get value() {
@@ -17,9 +16,5 @@ export class Observable {
 
   subscribe(callback) {
     return this._node.subscribe(callback);
-  }
-
-  map(fn) {
-    return createMappedObservable(this._node, fn);
   }
 }

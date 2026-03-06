@@ -7,8 +7,8 @@ export class SignalNode {
   }
 
   _notify(value) {
-    for (const cb of this._subscribers) cb(value);
-    for (const child of this._children) child._push(value);
+    for (const cb of [...this._subscribers]) cb(value);
+    for (const child of [...this._children]) child._push(value);
   }
 
   _push(value) {
@@ -19,6 +19,11 @@ export class SignalNode {
   subscribe(callback) {
     this._subscribers.add(callback);
     if (this._hasValue) callback(this._value);
+    return () => { this._subscribers.delete(callback); };
+  }
+
+  _subscribeRaw(callback) {
+    this._subscribers.add(callback);
     return () => { this._subscribers.delete(callback); };
   }
 

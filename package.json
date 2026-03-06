@@ -1,7 +1,7 @@
 {
   "name": "simplerx",
   "version": "0.1.0",
-  "description": "Minimal reactive framework with signals-based internals",
+  "description": "Minimal reactive framework with signals-based internals and LINQ-style fluent API",
   "type": "module",
   "main": "src/index.js",
   "types": "types/index.d.ts",
@@ -12,7 +12,10 @@
     }
   },
   "scripts": {
-    "test": "bun test"
+    "test": "vitest run"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
 }
