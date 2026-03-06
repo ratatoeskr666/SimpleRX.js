@@ -12,10 +12,7 @@
     }
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "bun test"
   },
-  "license": "MIT",
-  "devDependencies": {
-    "vitest": "^3.0.0"
-  }
+  "license": "MIT"
 }

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { Event, Observable } from '../src/index.js';
+import { describe, it, expect } from 'bun:test';
+import { Event, Observable } from '../../src/index.js';
 
 describe('Observable.map', () => {
   it('should return an Event, not an Observable', () => {
