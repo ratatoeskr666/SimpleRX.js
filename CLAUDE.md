@@ -23,6 +23,10 @@ Two base types — **Observable** and **Event** — with a clear separation:
 
 **Key rule**: all operators return Event. To get a stateful value back, call `.asObservable(initialValue)`.
 
+**Two cleanup mechanisms**:
+- **unsubscribe** (returned by `.subscribe()`) — removes only that callback. Chain stays alive.
+- **`.dispose()`** (on Event/Observable) — tears down the entire upstream operator chain. Removes all subscribers, detaches from parents, clears timers, cascades to upstream Events. Does NOT dispose user-created root Observables.
+
 ## Factory Functions
 
 Standalone functions that create root Events from time-based triggers. Exported from `src/factories.js`.
@@ -47,6 +51,7 @@ types/
 test/
   event.test.js       Event base type tests
   observable.test.js   Observable base type tests
+  dispose.test.js      Disposal and chain teardown tests
   factories/
     ticker.test.js       ticker factory tests (async)
     timer.test.js        timer factory tests (async)
@@ -87,6 +92,16 @@ Two wiring patterns:
 - **`_subscribeRaw` pattern** (raceEvent, combineEvent, waitForEvent, asObservable): subscribe directly to source(s), call `derived._node._notify()` manually
 
 Operators are attached to `Event.prototype` and `Observable.prototype` at the bottom of `operators.js`. This file is imported for side effects in `index.js`.
+
+## Disposal (`Event.dispose()` / `Observable.dispose()`)
+
+Each Event/Observable has:
+- `_disposers: []` — cleanup functions (remove from parent `_children`/`_subscribers`, clear timeouts)
+- `_sources: []` — upstream operator-created Events/Observables to cascade dispose to
+
+On `.dispose()`: runs all `_disposers`, clears `_subscribers` and `_children`, then recursively disposes all `_sources`. The `trackSource()` helper in `operators.js` only adds Event sources (not root Observables), so cascade stops at the user-created Observable boundary.
+
+`.subscribe()` returns an **unsubscribe** function that only removes the callback — it does NOT tear down the chain.
 
 Circular dependency between Event/Observable/operators is avoided by: `event.js` and `observable.js` define classes with only `subscribe`/`set`/`value`. `operators.js` imports both and attaches methods to their prototypes.
 

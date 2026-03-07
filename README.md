@@ -96,6 +96,7 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.filter(predicate)` | `Event` | Filter values by condition |
 | `.execute(fn)` | `Event` | Run side-effect, pass value through |
 | `.debounce(ms)` | `Event` | Debounce emissions by `ms` milliseconds |
+| `.dispose()` | `void` | Tear down this Observable (clear subscribers/children) |
 
 ### Event
 
@@ -110,6 +111,7 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.combineEvent(other)` | `Event` | Emit `[A, B]` tuples (combineLatest) |
 | `.waitForEvent(other)` | `Event` | Buffer value, emit when `other` fires |
 | `.asObservable(initialValue)` | `Observable` | Convert back to stateful Observable |
+| `.dispose()` | `void` | Tear down this Event and upstream operator chain |
 
 ### Factory Functions
 
@@ -118,11 +120,27 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `ticker(ms)` | `{ event, dispose }` | Emit 0, 1, 2, … every `ms` milliseconds |
 | `timer(ms)` | `{ event, dispose }` | Emit `0` once after `ms` milliseconds |
 
-All `.subscribe()` calls return a **dispose function** — call it to unsubscribe:
+### Cleanup: Unsubscribe vs Dispose
+
+There are two distinct cleanup mechanisms:
+
+**Unsubscribe** — returned by `.subscribe()`. Removes only that callback. The operator chain stays alive for other subscribers.
 
 ```js
-const dispose = count.subscribe(v => console.log(v));
-dispose();  // unsubscribed
+const mapped = count.map(v => v * 2);
+const unsub = mapped.subscribe(v => console.log(v));
+unsub();  // just removes this callback, chain stays alive
+```
+
+**Dispose** — called on an Event or Observable. Tears down the entire upstream operator chain: removes all subscribers, detaches from parent nodes, clears pending timers, and cascades to upstream Events. Does **not** dispose user-created root Observables.
+
+```js
+const o = new Observable(0);
+const chain = o.map(v => v + 1).filter(v => v > 0).map(v => v * 10);
+chain.subscribe(v => console.log(v));
+
+chain.dispose();  // tears down filter → first map, detaches from o
+// o is still alive and usable
 ```
 
 ## Operators

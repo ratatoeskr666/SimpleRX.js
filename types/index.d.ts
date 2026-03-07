@@ -65,6 +65,14 @@ export class Event<T = void> {
    * Future emissions update the Observable's stored value.
    */
   asObservable(initialValue: T): Observable<T>;
+
+  /**
+   * Tear down this Event and the entire upstream operator chain.
+   * Removes all subscribers and child nodes, detaches from parent nodes,
+   * clears pending timers, and recursively disposes upstream Events.
+   * Does NOT dispose user-created Observables at the root of a chain.
+   */
+  dispose(): void;
 }
 
 /**
@@ -114,6 +122,13 @@ export class Observable<T> {
    * emitting the most recent value. Returns a new Event.
    */
   debounce(ms: number): Event<T>;
+
+  /**
+   * Tear down this Observable. Removes all subscribers and child nodes.
+   * For derived Observables (from `.asObservable()`), cascades disposal
+   * up the chain. For root Observables, just clears local state.
+   */
+  dispose(): void;
 }
 
 // ---------------------------------------------------------------------------

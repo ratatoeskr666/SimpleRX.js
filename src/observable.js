@@ -24,6 +24,10 @@ export class Observable {
    */
   constructor(initialValue, _node) {
     this._node = _node || new SignalNode(initialValue, true);
+    /** @internal Cleanup functions for derived Observables (e.g. from asObservable). */
+    this._disposers = [];
+    /** @internal Upstream Events to cascade dispose to (for derived Observables). */
+    this._sources = [];
   }
 
   /**
@@ -47,9 +51,24 @@ export class Observable {
    * Subscribe to this Observable. The callback is invoked immediately with
    * the current value, then again each time the value changes.
    * @param {(value: any) => void} callback Function called with each value.
-   * @returns {() => void} Dispose function to unsubscribe.
+   * @returns {() => void} Unsubscribe function — removes only this callback.
    */
   subscribe(callback) {
     return this._node.subscribe(callback);
+  }
+
+  /**
+   * Tear down this Observable. Removes all subscribers and child nodes.
+   * For derived Observables (created by `.asObservable()`), also detaches
+   * from the source Event and cascades disposal up the chain.
+   * For root Observables (`new Observable(value)`), just clears local state.
+   */
+  dispose() {
+    for (const fn of this._disposers) fn();
+    this._disposers.length = 0;
+    this._node._subscribers.clear();
+    this._node._children.clear();
+    for (const source of this._sources) source.dispose();
+    this._sources.length = 0;
   }
 }

@@ -19,6 +19,10 @@ export class Event {
   /** @internal */
   constructor(node) {
     this._node = node || new SignalNode(undefined, false);
+    /** @internal Cleanup functions (detach from parent, clear timers, etc.) */
+    this._disposers = [];
+    /** @internal Upstream operator-created Events to cascade dispose to. */
+    this._sources = [];
   }
 
   /**
@@ -26,9 +30,27 @@ export class Event {
    * The callback is NOT invoked immediately — only when a value is pushed
    * through the reactive chain.
    * @param {(value: any) => void} callback Function called on each emission.
-   * @returns {() => void} Dispose function to unsubscribe.
+   * @returns {() => void} Unsubscribe function — removes only this callback.
    */
   subscribe(callback) {
     return this._node.subscribe(callback);
+  }
+
+  /**
+   * Tear down this Event and the entire upstream operator chain.
+   * - Removes all subscribers and child nodes from this Event.
+   * - Detaches this node from its parent (removes from _children / _subscribers).
+   * - Recursively disposes upstream operator-created Events.
+   * - Clears any pending timers (e.g. debounce).
+   *
+   * Does NOT dispose user-created Observables at the root of a chain.
+   */
+  dispose() {
+    for (const fn of this._disposers) fn();
+    this._disposers.length = 0;
+    this._node._subscribers.clear();
+    this._node._children.clear();
+    for (const source of this._sources) source.dispose();
+    this._sources.length = 0;
   }
 }
