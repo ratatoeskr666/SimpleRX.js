@@ -11,11 +11,11 @@ Two base types — **Observable** and **Event** — with a clear separation:
   - `.value` — synchronous read of current value
   - `.set(newValue)` — update and notify
   - `.subscribe(cb)` — fires `cb` immediately with current value, then on every change (BehaviorSubject semantics)
-  - `.map()`, `.filter()`, `.execute()`, `.debounce()` — all return an **Event**, not an Observable
+  - `.map()`, `.filter()`, `.execute()`, `.debounce()`, `.takeAndDispose()`, `.skipFirst()`, `.debounceAndDispose()` — all return an **Event**, not an Observable
 
 - **Event** — a derived stream created only by operators. Does NOT store a value. Cannot be emitted manually (no `.emit()`).
   - `.subscribe(cb)` — fires only on future emissions, NOT immediately
-  - `.map()`, `.filter()`, `.execute()`, `.debounce()` — chain further, return Event
+  - `.map()`, `.filter()`, `.execute()`, `.debounce()`, `.takeAndDispose()`, `.skipFirst()`, `.debounceAndDispose()` — chain further, return Event
   - `.raceEvent(other)` — first to emit wins, loser permanently ignored
   - `.combineEvent(other)` — emits `[A, B]` tuples once both have fired (combineLatest)
   - `.waitForEvent(other)` — buffers latest value, emits when `other` fires

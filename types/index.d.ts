@@ -61,6 +61,22 @@ export class Event<T = void> {
   waitForEvent(otherEvent: Event<any>): Event<T>;
 
   /**
+   * Take the first `count` emissions, then auto-dispose the entire chain.
+   */
+  takeAndDispose(count: number): Event<T>;
+
+  /**
+   * Skip the first `count` emissions, then pass everything through.
+   */
+  skipFirst(count: number): Event<T>;
+
+  /**
+   * Debounce emissions, emit once after `ms` milliseconds of silence,
+   * then auto-dispose the entire chain.
+   */
+  debounceAndDispose(ms: number): Event<T>;
+
+  /**
    * Convert this Event into an Observable with an initial value.
    * Future emissions update the Observable's stored value.
    */
@@ -122,6 +138,22 @@ export class Observable<T> {
    * emitting the most recent value. Returns a new Event.
    */
   debounce(ms: number): Event<T>;
+
+  /**
+   * Take the first `count` emissions, then auto-dispose the entire chain.
+   */
+  takeAndDispose(count: number): Event<T>;
+
+  /**
+   * Skip the first `count` emissions, then pass everything through.
+   */
+  skipFirst(count: number): Event<T>;
+
+  /**
+   * Debounce emissions, emit once after `ms` milliseconds of silence,
+   * then auto-dispose the entire chain.
+   */
+  debounceAndDispose(ms: number): Event<T>;
 
   /**
    * Tear down this Observable. Removes all subscribers and child nodes.

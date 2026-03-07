@@ -96,6 +96,9 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.filter(predicate)` | `Event` | Filter values by condition |
 | `.execute(fn)` | `Event` | Run side-effect, pass value through |
 | `.debounce(ms)` | `Event` | Debounce emissions by `ms` milliseconds |
+| `.takeAndDispose(count)` | `Event` | Take N emissions, then auto-dispose chain |
+| `.skipFirst(count)` | `Event` | Skip first N emissions, pass the rest |
+| `.debounceAndDispose(ms)` | `Event` | Debounce, emit once, then auto-dispose |
 | `.dispose()` | `void` | Tear down this Observable (clear subscribers/children) |
 
 ### Event
@@ -107,6 +110,9 @@ Events are the intermediate type in operator chains. To get a stateful value bac
 | `.filter(predicate)` | `Event` | Filter values by condition |
 | `.execute(fn)` | `Event` | Run side-effect, pass value through |
 | `.debounce(ms)` | `Event` | Debounce emissions by `ms` milliseconds |
+| `.takeAndDispose(count)` | `Event` | Take N emissions, then auto-dispose chain |
+| `.skipFirst(count)` | `Event` | Skip first N emissions, pass the rest |
+| `.debounceAndDispose(ms)` | `Event` | Debounce, emit once, then auto-dispose |
 | `.raceEvent(other)` | `Event` | First source to emit wins, loser ignored |
 | `.combineEvent(other)` | `Event` | Emit `[A, B]` tuples (combineLatest) |
 | `.waitForEvent(other)` | `Event` | Buffer value, emit when `other` fires |
@@ -193,6 +199,43 @@ search.set('he');
 search.set('hel');
 search.set('hello');
 // Only 'hello' is emitted — after 300ms of silence
+```
+
+### takeAndDispose
+
+Take the first N emissions, then auto-dispose the entire chain.
+
+```js
+const clicks = new Observable(0);
+clicks.takeAndDispose(3).subscribe(v => console.log('click', v));
+clicks.set(1);  // → click 1
+clicks.set(2);  // → click 2
+clicks.set(3);  // → click 3 (chain auto-disposes)
+clicks.set(4);  // nothing — chain is gone
+```
+
+### skipFirst
+
+Ignore the first N emissions, then pass everything through.
+
+```js
+const sensor = new Observable(0);
+sensor.skipFirst(2).subscribe(v => console.log('stable:', v));
+sensor.set(1);  // skipped (calibrating)
+sensor.set(2);  // skipped (calibrating)
+sensor.set(3);  // → stable: 3
+```
+
+### debounceAndDispose
+
+Like debounce, but auto-disposes after the single debounced emission. One-shot idle pattern.
+
+```js
+const input = new Observable('');
+input.debounceAndDispose(500).subscribe(v => saveDraft(v));
+input.set('he');
+input.set('hello');
+// After 500ms of silence → saveDraft('hello'), then chain auto-disposes
 ```
 
 ### raceEvent
