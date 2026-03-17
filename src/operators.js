@@ -15,7 +15,7 @@ function trackSource(derived, source) {
 }
 
 // ---------------------------------------------------------------------------
-// _addChild pattern operators (map, filter, execute, debounce)
+// _addChild pattern operators (map, filter, execute, debounce, etc.)
 // ---------------------------------------------------------------------------
 
 /**
@@ -64,6 +64,9 @@ function executeOperator(sourceNode, fn, source) {
  * silence have passed. Clears pending timeouts on dispose.
  */
 function debounceOperator(sourceNode, ms, source) {
+  if (typeof ms !== 'number' || ms < 0) {
+    throw new RangeError(`debounce(ms) requires ms >= 0, got ${ms}`);
+  }
   const derived = new Event();
   let timerId = null;
   derived._node._push = (value) => {
@@ -77,6 +80,41 @@ function debounceOperator(sourceNode, ms, source) {
     sourceNode._addChild(derived._node),
     () => { if (timerId !== null) { clearTimeout(timerId); timerId = null; } }
   );
+  trackSource(derived, source);
+  return derived;
+}
+
+/**
+ * Creates a derived Event that only emits when the value differs from
+ * the previous emission (by reference equality, or a custom comparator).
+ */
+function distinctUntilChangedOperator(sourceNode, comparator, source) {
+  const derived = new Event();
+  let lastValue;
+  let hasLast = false;
+  const isEqual = comparator || ((a, b) => a === b);
+  derived._node._push = (value) => {
+    if (hasLast && isEqual(lastValue, value)) return;
+    lastValue = value;
+    hasLast = true;
+    derived._node._notify(value);
+  };
+  derived._disposers.push(sourceNode._addChild(derived._node));
+  trackSource(derived, source);
+  return derived;
+}
+
+/**
+ * Creates a derived Event that logs each emission with a label,
+ * then passes the value through unchanged.
+ */
+function debugOperator(sourceNode, label, source) {
+  const derived = new Event();
+  derived._node._push = (value) => {
+    console.log(`[${label}]`, value);
+    derived._node._notify(value);
+  };
+  derived._disposers.push(sourceNode._addChild(derived._node));
   trackSource(derived, source);
   return derived;
 }
@@ -95,7 +133,7 @@ function asObservableOperator(initialValue) {
     obsNode._value = value;
     obsNode._notify(value);
   });
-  const obs = new Observable(undefined, obsNode);
+  const obs = new Observable(initialValue, obsNode);
   obs._disposers.push(disposeRaw);
   trackSource(obs, this);
   return obs;
@@ -103,18 +141,32 @@ function asObservableOperator(initialValue) {
 
 /**
  * Race this Event against another. The first to emit wins; the loser is
- * permanently ignored.
+ * permanently ignored and its subscription is cleaned up.
  */
 function raceEventOperator(otherEvent) {
   const derived = new Event();
   let winner = null;
-  const handler = (source) => (value) => {
-    if (winner === null) winner = source;
-    if (winner === source) derived._node._notify(value);
-  };
+  let disposeA, disposeB;
+
+  disposeA = this._node._subscribeRaw((value) => {
+    if (winner === null) {
+      winner = 'a';
+      disposeB();
+    }
+    if (winner === 'a') derived._node._notify(value);
+  });
+
+  disposeB = otherEvent._node._subscribeRaw((value) => {
+    if (winner === null) {
+      winner = 'b';
+      disposeA();
+    }
+    if (winner === 'b') derived._node._notify(value);
+  });
+
   derived._disposers.push(
-    this._node._subscribeRaw(handler('a')),
-    otherEvent._node._subscribeRaw(handler('b'))
+    () => { if (winner !== 'b') disposeA(); },
+    () => { if (winner !== 'a') disposeB(); }
   );
   trackSource(derived, this);
   trackSource(derived, otherEvent);
@@ -174,12 +226,11 @@ function waitForEventOperator(otherEvent) {
 
 /**
  * Takes the first `count` emissions, then auto-disposes the entire chain.
- * @param {SignalNode} sourceNode The source signal node.
- * @param {number} count Number of values to take before disposing.
- * @param {Event|Observable} source The source wrapper for disposal tracking.
- * @returns {Event} A new Event that emits at most `count` values.
  */
 function takeAndDisposeOperator(sourceNode, count, source) {
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) {
+    throw new RangeError(`takeAndDispose(count) requires an integer >= 1, got ${count}`);
+  }
   const derived = new Event();
   let remaining = count;
   derived._node._push = (value) => {
@@ -196,12 +247,11 @@ function takeAndDisposeOperator(sourceNode, count, source) {
 
 /**
  * Ignores the first `count` emissions, then passes everything through.
- * @param {SignalNode} sourceNode The source signal node.
- * @param {number} count Number of values to skip.
- * @param {Event|Observable} source The source wrapper for disposal tracking.
- * @returns {Event} A new Event that skips the first `count` values.
  */
 function skipFirstOperator(sourceNode, count, source) {
+  if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+    throw new RangeError(`skipFirst(count) requires an integer >= 0, got ${count}`);
+  }
   const derived = new Event();
   let remaining = count;
   derived._node._push = (value) => {
@@ -216,12 +266,11 @@ function skipFirstOperator(sourceNode, count, source) {
 /**
  * Like debounce, but auto-disposes the chain after the single debounced
  * emission. Useful for one-shot idle patterns.
- * @param {SignalNode} sourceNode The source signal node.
- * @param {number} ms Debounce window in milliseconds.
- * @param {Event|Observable} source The source wrapper for disposal tracking.
- * @returns {Event} A new Event that emits once after silence, then disposes.
  */
 function debounceAndDisposeOperator(sourceNode, ms, source) {
+  if (typeof ms !== 'number' || ms < 0) {
+    throw new RangeError(`debounceAndDispose(ms) requires ms >= 0, got ${ms}`);
+  }
   const derived = new Event();
   let timerId = null;
   derived._node._push = (value) => {
@@ -240,115 +289,116 @@ function debounceAndDisposeOperator(sourceNode, ms, source) {
   return derived;
 }
 
+/**
+ * Returns a Promise that resolves with the next emitted value, then unsubscribes.
+ */
+function firstValueMethod() {
+  return new Promise((resolve) => {
+    const unsub = this._node._subscribeRaw((value) => {
+      unsub();
+      resolve(value);
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Attach operators to prototypes
+// Attach operators to Event.prototype
 // ---------------------------------------------------------------------------
 
-/** Transform each emitted value. Returns a new Event. */
 Event.prototype.map = function (fn) {
   return mapOperator(this._node, fn, this);
 };
 
-/** Filter emissions by predicate. Non-matching values are dropped. Returns a new Event. */
 Event.prototype.filter = function (predicate) {
   return filterOperator(this._node, predicate, this);
 };
 
-/** Run a side-effect for each value without altering it. Returns a new Event. */
 Event.prototype.execute = function (fn) {
   return executeOperator(this._node, fn, this);
 };
 
-/** Convert this Event into an Observable with an initial value. */
 Event.prototype.asObservable = asObservableOperator;
 
-/**
- * Race this Event against another. The first to emit wins; the loser is
- * permanently ignored. Returns a new Event.
- */
 Event.prototype.raceEvent = raceEventOperator;
 
-/**
- * Combine this Event with another. Emits [A, B] tuples once both have
- * emitted at least once. Returns a new Event.
- */
 Event.prototype.combineEvent = combineEventOperator;
 
-/**
- * Debounce emissions — waits for `ms` milliseconds of silence before
- * emitting the most recent value. Returns a new Event.
- */
 Event.prototype.debounce = function (ms) {
   return debounceOperator(this._node, ms, this);
 };
 
-/**
- * Wait for `otherEvent` to fire before emitting the latest buffered value.
- * Only the most recent value is kept. Returns a new Event.
- */
 Event.prototype.waitForEvent = waitForEventOperator;
 
-/**
- * Take the first `count` emissions, then auto-dispose the chain. Returns a new Event.
- */
 Event.prototype.takeAndDispose = function (count) {
   return takeAndDisposeOperator(this._node, count, this);
 };
 
-/**
- * Skip the first `count` emissions, then pass everything through. Returns a new Event.
- */
 Event.prototype.skipFirst = function (count) {
   return skipFirstOperator(this._node, count, this);
 };
 
-/**
- * Debounce emissions, emit once after silence, then auto-dispose. Returns a new Event.
- */
 Event.prototype.debounceAndDispose = function (ms) {
   return debounceAndDisposeOperator(this._node, ms, this);
 };
 
-/** Transform each emitted value. Returns a new Event (not Observable). */
+Event.prototype.distinctUntilChanged = function (comparator) {
+  return distinctUntilChangedOperator(this._node, comparator, this);
+};
+
+Event.prototype.debug = function (label) {
+  return debugOperator(this._node, label || 'debug', this);
+};
+
+Event.prototype.firstValue = firstValueMethod;
+
+Event.prototype.toPromise = firstValueMethod;
+
+// ---------------------------------------------------------------------------
+// Attach operators to Observable.prototype
+// ---------------------------------------------------------------------------
+
 Observable.prototype.map = function (fn) {
   return mapOperator(this._node, fn, this);
 };
 
-/** Filter emissions by predicate. Non-matching values are dropped. Returns a new Event. */
 Observable.prototype.filter = function (predicate) {
   return filterOperator(this._node, predicate, this);
 };
 
-/** Run a side-effect for each value without altering it. Returns a new Event. */
 Observable.prototype.execute = function (fn) {
   return executeOperator(this._node, fn, this);
 };
 
-/**
- * Debounce emissions — waits for `ms` milliseconds of silence before
- * emitting the most recent value. Returns a new Event.
- */
 Observable.prototype.debounce = function (ms) {
   return debounceOperator(this._node, ms, this);
 };
 
-/**
- * Take the first `count` emissions, then auto-dispose the chain. Returns a new Event.
- */
 Observable.prototype.takeAndDispose = function (count) {
   return takeAndDisposeOperator(this._node, count, this);
 };
 
-/**
- * Skip the first `count` emissions, then pass everything through. Returns a new Event.
- */
 Observable.prototype.skipFirst = function (count) {
   return skipFirstOperator(this._node, count, this);
 };
 
-/**
- * Debounce emissions, emit once after silence, then auto-dispose. Returns a new Event.
- */
 Observable.prototype.debounceAndDispose = function (ms) {
   return debounceAndDisposeOperator(this._node, ms, this);
 };
+
+Observable.prototype.distinctUntilChanged = function (comparator) {
+  return distinctUntilChangedOperator(this._node, comparator, this);
+};
+
+Observable.prototype.debug = function (label) {
+  return debugOperator(this._node, label || 'debug', this);
+};
+
+Observable.prototype.raceEvent = raceEventOperator;
+
+Observable.prototype.combineEvent = combineEventOperator;
+
+Observable.prototype.waitForEvent = waitForEventOperator;
+
+Observable.prototype.firstValue = firstValueMethod;
+
+Observable.prototype.toPromise = firstValueMethod;

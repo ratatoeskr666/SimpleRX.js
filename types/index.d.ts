@@ -35,15 +35,16 @@ export class Event<T = void> {
   /**
    * Debounce emissions — waits for `ms` milliseconds of silence before
    * emitting the most recent value.
+   * @throws {RangeError} If `ms` is negative or not a number.
    */
   debounce(ms: number): Event<T>;
 
   /**
    * Race this Event against another. The first source to emit wins —
    * all future emissions come only from the winner. The losing source
-   * is permanently ignored.
+   * is permanently ignored and its subscription is cleaned up.
    */
-  raceEvent(other: Event<T>): Event<T>;
+  raceEvent<U>(other: Event<U>): Event<T | U>;
 
   /**
    * Combine this Event with another. Emits a `[A, B]` tuple containing
@@ -62,25 +63,52 @@ export class Event<T = void> {
 
   /**
    * Take the first `count` emissions, then auto-dispose the entire chain.
+   * @throws {RangeError} If `count` is not a positive integer.
    */
   takeAndDispose(count: number): Event<T>;
 
   /**
    * Skip the first `count` emissions, then pass everything through.
+   * @throws {RangeError} If `count` is not a non-negative integer.
    */
   skipFirst(count: number): Event<T>;
 
   /**
    * Debounce emissions, emit once after `ms` milliseconds of silence,
    * then auto-dispose the entire chain.
+   * @throws {RangeError} If `ms` is negative or not a number.
    */
   debounceAndDispose(ms: number): Event<T>;
+
+  /**
+   * Only emit when the value differs from the previous emission.
+   * Uses reference equality (`===`) by default, or a custom comparator.
+   */
+  distinctUntilChanged(comparator?: (prev: T, next: T) => boolean): Event<T>;
+
+  /**
+   * Log each emission with a label, then pass the value through unchanged.
+   * Useful for debugging reactive chains.
+   */
+  debug(label?: string): Event<T>;
 
   /**
    * Convert this Event into an Observable with an initial value.
    * Future emissions update the Observable's stored value.
    */
   asObservable(initialValue: T): Observable<T>;
+
+  /**
+   * Returns a Promise that resolves with the next emitted value.
+   * Automatically unsubscribes after the first emission.
+   */
+  firstValue(): Promise<T>;
+
+  /**
+   * Alias for `firstValue()`. Returns a Promise that resolves with
+   * the next emitted value.
+   */
+  toPromise(): Promise<T>;
 
   /**
    * Tear down this Event and the entire upstream operator chain.
@@ -136,24 +164,67 @@ export class Observable<T> {
   /**
    * Debounce emissions — waits for `ms` milliseconds of silence before
    * emitting the most recent value. Returns a new Event.
+   * @throws {RangeError} If `ms` is negative or not a number.
    */
   debounce(ms: number): Event<T>;
 
   /**
    * Take the first `count` emissions, then auto-dispose the entire chain.
+   * @throws {RangeError} If `count` is not a positive integer.
    */
   takeAndDispose(count: number): Event<T>;
 
   /**
    * Skip the first `count` emissions, then pass everything through.
+   * @throws {RangeError} If `count` is not a non-negative integer.
    */
   skipFirst(count: number): Event<T>;
 
   /**
    * Debounce emissions, emit once after `ms` milliseconds of silence,
    * then auto-dispose the entire chain.
+   * @throws {RangeError} If `ms` is negative or not a number.
    */
   debounceAndDispose(ms: number): Event<T>;
+
+  /**
+   * Only emit when the value differs from the previous emission.
+   * Uses reference equality (`===`) by default, or a custom comparator.
+   */
+  distinctUntilChanged(comparator?: (prev: T, next: T) => boolean): Event<T>;
+
+  /**
+   * Log each emission with a label, then pass the value through unchanged.
+   */
+  debug(label?: string): Event<T>;
+
+  /**
+   * Race this Observable's emissions against another Event. The first to
+   * emit wins; the loser is permanently ignored.
+   */
+  raceEvent<U>(other: Event<U>): Event<T | U>;
+
+  /**
+   * Combine this Observable's emissions with another Event. Emits [A, B]
+   * tuples once both have emitted at least once (combineLatest semantics).
+   */
+  combineEvent<U>(other: Event<U>): Event<[T, U]>;
+
+  /**
+   * Buffer the latest value and only emit it when `otherEvent` fires.
+   */
+  waitForEvent(otherEvent: Event<any>): Event<T>;
+
+  /**
+   * Returns a Promise that resolves with the next emitted value.
+   * Automatically unsubscribes after the first emission.
+   */
+  firstValue(): Promise<T>;
+
+  /**
+   * Alias for `firstValue()`.
+   */
+  toPromise(): Promise<T>;
 
   /**
    * Tear down this Observable. Removes all subscribers and child nodes.
@@ -181,3 +252,38 @@ export function ticker(ms: number): { event: Event<number>; dispose: Dispose };
  * @returns `event` to subscribe to, `dispose` to cancel before it fires.
  */
 export function timer(ms: number): { event: Event<number>; dispose: Dispose };
+
+/**
+ * Merge multiple Events into a single Event that emits whenever any
+ * source emits. Unlike `combineEvent`, emissions are forwarded immediately.
+ * @param events Two or more Events to merge.
+ * @throws {RangeError} If fewer than 2 events are provided.
+ */
+export function mergeEvents<T>(...events: Event<T>[]): { event: Event<T>; dispose: Dispose };
+
+/**
+ * Create an Event from a Promise. Emits the resolved value once.
+ * Does not emit if the promise rejects.
+ */
+export function fromPromise<T>(promise: Promise<T>): { event: Event<T>; dispose: Dispose };
+
+/**
+ * Create an Event from a DOM EventTarget.
+ * @param target The target to listen on (e.g. `document`, an `HTMLElement`).
+ * @param eventName The event name (e.g. `'click'`, `'input'`).
+ */
+export function fromEvent<K extends keyof HTMLElementEventMap>(
+  target: HTMLElement,
+  eventName: K,
+): { event: Event<HTMLElementEventMap[K]>; dispose: Dispose };
+export function fromEvent(
+  target: EventTarget,
+  eventName: string,
+): { event: Event<globalThis.Event>; dispose: Dispose };
+
+/**
+ * Set a global error handler for exceptions thrown by subscriber callbacks.
+ * By default, errors are re-thrown. Setting a handler prevents a single
+ * throwing subscriber from breaking sibling notifications.
+ */
+export function setOnError(handler: (error: unknown) => void): void;

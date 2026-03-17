@@ -1,4 +1,20 @@
 /**
+ * Global error handler for exceptions thrown by subscriber callbacks.
+ * Defaults to re-throwing. Set to a custom function to catch errors
+ * without breaking the notification loop.
+ * @type {(error: unknown) => void}
+ */
+export let onError = (error) => { throw error; };
+
+/**
+ * Replace the global error handler.
+ * @param {(error: unknown) => void} handler
+ */
+export function setOnError(handler) {
+  onError = handler;
+}
+
+/**
  * Internal reactive node that powers both Event and Observable.
  * Uses a push-based notification model with a two-tier system:
  * direct subscribers (callbacks) and child nodes (for operator chaining).
@@ -17,8 +33,12 @@ export class SignalNode {
    * Iterates over a snapshot to safely handle re-entrant subscribe/unsubscribe.
    */
   _notify(value) {
-    for (const cb of [...this._subscribers]) cb(value);
-    for (const child of [...this._children]) child._push(value);
+    for (const cb of [...this._subscribers]) {
+      try { cb(value); } catch (e) { onError(e); }
+    }
+    for (const child of [...this._children]) {
+      try { child._push(value); } catch (e) { onError(e); }
+    }
   }
 
   /**
@@ -37,7 +57,9 @@ export class SignalNode {
    */
   subscribe(callback) {
     this._subscribers.add(callback);
-    if (this._hasValue) callback(this._value);
+    if (this._hasValue) {
+      try { callback(this._value); } catch (e) { onError(e); }
+    }
     return () => { this._subscribers.delete(callback); };
   }
 
