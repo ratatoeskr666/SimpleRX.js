@@ -1,6 +1,16 @@
 # SimpleRX.js
 
-A minimal reactive framework for JavaScript with signal-based internals and a LINQ-style fluent API.
+A minimal reactive framework for JavaScript with signal-based internals and a LINQ-style fluent API, designed to be easy to understand and use without requiring years of studying reactive principles.
+
+## Comparison to RxJS
+RxJS is a powerful and very well tought out library but it has the issue of a steep learning curve. In my opinion this has multiple root causes:
+* No easy distinction between hot and cold observables
+* Cold observables emit a value when subscribed, hot don't
+
+SimpleRX doesn't want to compete with RxJS when it comes to performance or extensiveness, but my aim in developing this library was to make it easier for developers to harness the power of reactive programming.
+
+## Disclaimer
+I developed this library with the help of AI since I don't really have the time to write all the code by myself. Although there are tests and I reviewed the code with caution, I have to suggest to **USE THIS LIBRARY WITH CAUTION AND NOT IN PRODUCTION!**
 
 ## Features
 
