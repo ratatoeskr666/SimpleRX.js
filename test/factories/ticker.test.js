@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { ticker, Event } from '../../src/index.js';
 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const delay = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 describe('ticker', () => {
   it('should return { event, dispose }', () => {
@@ -15,7 +15,7 @@ describe('ticker', () => {
     const { event, dispose } = ticker(20);
     const received = [];
     event.subscribe(v => received.push(v));
-    await delay(75);
+    await delay(75); // 20, 40, 60 -> 3 ticks
     dispose();
     expect(received[0]).toBe(0);
     expect(received[1]).toBe(1);
