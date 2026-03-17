@@ -1,5 +1,4 @@
 import { Event } from './event.js';
-import { Observable } from './observable.js';
 
 // ---------------------------------------------------------------------------
 // Factory functions that create root Events from time-based triggers
@@ -9,6 +8,7 @@ import { Observable } from './observable.js';
  * Creates an Event that emits incrementing integers (0, 1, 2, …) at a
  * fixed interval. The underlying `setInterval` is shared across all
  * subscribers.
+ * Caution: the first value is not emitted immediately, but after the defined ms 
  *
  * @param {number} ms Interval in milliseconds between emissions.
  * @returns {{ event: Event<number>, dispose: () => void }}

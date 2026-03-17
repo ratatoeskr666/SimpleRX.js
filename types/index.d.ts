@@ -241,6 +241,7 @@ export class Observable<T> {
 /**
  * Create an Event that emits incrementing integers (0, 1, 2, …) at a
  * fixed interval.
+ * Caution: the first value is not emitted immediately, but after the defined ms
  * @param ms Interval in milliseconds between emissions.
  * @returns `event` to subscribe to, `dispose` to stop the interval.
  */
