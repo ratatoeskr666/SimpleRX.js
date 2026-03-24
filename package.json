@@ -5,6 +5,10 @@
   "type": "module",
   "main": "src/index.js",
   "types": "types/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ratatoeskr666/SimpleRX.js"
+  },
   "exports": {
     ".": {
       "import": "./src/index.js",
